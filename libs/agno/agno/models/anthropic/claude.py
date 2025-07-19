@@ -33,9 +33,14 @@ try:
         ContentBlockStopEvent,
         # MessageDeltaEvent,  # Currently broken
         MessageStopEvent,
+        ThinkingBlock,  # Add ThinkingBlock import
     )
     from anthropic.types import (
         Message as AnthropicMessage,
+    )
+    # Import proper streaming types for better type safety
+    from anthropic.lib.streaming._types import (
+        ContentBlockStopEvent as StreamingContentBlockStopEvent,
     )
 except ImportError as e:
     raise ImportError("`anthropic` not installed. Please install it with `pip install anthropic`") from e
@@ -246,13 +251,13 @@ class Claude(Model):
             if self.mcp_servers is not None:
                 return self.get_client().beta.messages.create(
                     model=self.id,
-                    messages=chat_messages,  # type: ignore
+                    messages=chat_messages,
                     **self.get_request_params(),
                 )
             else:
                 return self.get_client().messages.create(
                     model=self.id,
-                    messages=chat_messages,  # type: ignore
+                    messages=chat_messages,
                     **request_kwargs,
                 )
         except APIConnectionError as e:
@@ -300,7 +305,7 @@ class Claude(Model):
                     self.get_client()
                     .beta.messages.stream(
                         model=self.id,
-                        messages=chat_messages,  # type: ignore
+                        messages=chat_messages,
                         **request_kwargs,
                     )
                     .__enter__()
@@ -310,7 +315,7 @@ class Claude(Model):
                     self.get_client()
                     .messages.stream(
                         model=self.id,
-                        messages=chat_messages,  # type: ignore
+                        messages=chat_messages,
                         **request_kwargs,
                     )
                     .__enter__()
@@ -347,13 +352,13 @@ class Claude(Model):
             if self.mcp_servers is not None:
                 return await self.get_async_client().beta.messages.create(
                     model=self.id,
-                    messages=chat_messages,  # type: ignore
+                    messages=chat_messages,
                     **self.get_request_params(),
                 )
             else:
                 return await self.get_async_client().messages.create(
                     model=self.id,
-                    messages=chat_messages,  # type: ignore
+                    messages=chat_messages,
                     **request_kwargs,
                 )
         except APIConnectionError as e:
@@ -399,7 +404,7 @@ class Claude(Model):
             if self.mcp_servers is not None:
                 async with self.get_async_client().beta.messages.stream(
                     model=self.id,
-                    messages=chat_messages,  # type: ignore
+                    messages=chat_messages,
                     **request_kwargs,
                 ) as stream:
                     async for chunk in stream:
@@ -407,10 +412,10 @@ class Claude(Model):
             else:
                 async with self.get_async_client().messages.stream(
                     model=self.id,
-                    messages=chat_messages,  # type: ignore
+                    messages=chat_messages,
                     **request_kwargs,
                 ) as stream:
-                    async for chunk in stream:  # type: ignore
+                    async for chunk in stream:
                         yield chunk
         except APIConnectionError as e:
             log_error(f"Connection error while calling Claude API: {str(e)}")
@@ -571,16 +576,15 @@ class Claude(Model):
 
         elif isinstance(response, ContentBlockStopEvent):
             # Handle completed thinking content
-            if response.content_block.type == "thinking":  # type: ignore
-                model_response.thinking = response.content_block.thinking  # type: ignore
-                # Store signature if available
-                if hasattr(response.content_block, "signature"):  # type: ignore
-                    model_response.provider_data = {
-                        "signature": response.content_block.signature,  # type: ignore
-                    }
+            if response.content_block.type == "thinking":
+                thinking_block = response.content_block 
+                model_response.thinking = thinking_block.thinking
+                model_response.provider_data = {
+                    "signature": thinking_block.signature,
+                }
             # Handle tool calls
-            elif response.content_block.type == "tool_use":  # type: ignore
-                tool_use = response.content_block  # type: ignore
+            elif response.content_block.type == "tool_use":
+                tool_use = response.content_block
                 tool_name = tool_use.name
                 tool_input = tool_use.input
 
