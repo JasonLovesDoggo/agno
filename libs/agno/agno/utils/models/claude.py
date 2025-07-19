@@ -202,7 +202,7 @@ def _format_file_for_message(file: File) -> Optional[Dict[str, Any]]:
     return None
 
 
-def format_messages(messages: List[Message]) -> Tuple[List[Dict[str, str]], str]:
+def format_messages(messages: List[Message]) -> Tuple[List[Dict[str, Any]], str]:
     """
     Process the list of messages and separate them into API messages and system messages.
 
@@ -212,7 +212,7 @@ def format_messages(messages: List[Message]) -> Tuple[List[Dict[str, str]], str]
     Returns:
         Tuple[List[Dict[str, str]], str]: A tuple containing the list of API messages and the concatenated system messages.
     """
-    chat_messages: List[Dict[str, str]] = []
+    chat_messages: List[Dict[str, Any]] = []
     system_messages: List[str] = []
 
     for message in messages:
@@ -284,5 +284,5 @@ def format_messages(messages: List[Message]) -> Tuple[List[Dict[str, str]], str]
         if message.role == "assistant" and not content:
             continue
 
-        chat_messages.append({"role": ROLE_MAP[message.role], "content": content})  # type: ignore
+        chat_messages.append({"role": ROLE_MAP[message.role], "content": content})
     return chat_messages, " ".join(system_messages)

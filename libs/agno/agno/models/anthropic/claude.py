@@ -2,7 +2,7 @@ import json
 from collections.abc import AsyncIterator
 from dataclasses import asdict, dataclass
 from os import getenv
-from typing import Any, Dict, List, Optional, Type, Union
+from typing import Any, Dict, List, Optional, Type, Union, cast
 
 from pydantic import BaseModel
 
@@ -25,22 +25,22 @@ try:
     from anthropic import (
         AsyncAnthropic as AsyncAnthropicClient,
     )
+
+    # Import proper streaming types that have content_block attribute
+    from anthropic.lib.streaming._types import (
+        ContentBlockStopEvent,
+    )
     from anthropic.types import (
         CitationPageLocation,
         CitationsWebSearchResultLocation,
         ContentBlockDeltaEvent,
         ContentBlockStartEvent,
-        ContentBlockStopEvent,
+        MessageParam,
         # MessageDeltaEvent,  # Currently broken
         MessageStopEvent,
-        ThinkingBlock,  # Add ThinkingBlock import
     )
     from anthropic.types import (
         Message as AnthropicMessage,
-    )
-    # Import proper streaming types for better type safety
-    from anthropic.lib.streaming._types import (
-        ContentBlockStopEvent as StreamingContentBlockStopEvent,
     )
 except ImportError as e:
     raise ImportError("`anthropic` not installed. Please install it with `pip install anthropic`") from e
@@ -49,6 +49,7 @@ except ImportError as e:
 try:
     from anthropic.types.beta import (
         BetaMessage,
+        BetaMessageParam,
         BetaRawContentBlockDeltaEvent,
         BetaTextDelta,
     )
@@ -251,13 +252,13 @@ class Claude(Model):
             if self.mcp_servers is not None:
                 return self.get_client().beta.messages.create(
                     model=self.id,
-                    messages=chat_messages,
+                    messages=cast(List[BetaMessageParam], chat_messages),
                     **self.get_request_params(),
                 )
             else:
                 return self.get_client().messages.create(
                     model=self.id,
-                    messages=chat_messages,
+                    messages=cast(List[MessageParam], chat_messages),
                     **request_kwargs,
                 )
         except APIConnectionError as e:
@@ -305,7 +306,7 @@ class Claude(Model):
                     self.get_client()
                     .beta.messages.stream(
                         model=self.id,
-                        messages=chat_messages,
+                        messages=cast(List[BetaMessageParam], chat_messages),
                         **request_kwargs,
                     )
                     .__enter__()
@@ -315,7 +316,7 @@ class Claude(Model):
                     self.get_client()
                     .messages.stream(
                         model=self.id,
-                        messages=chat_messages,
+                        messages=cast(List[MessageParam], chat_messages),
                         **request_kwargs,
                     )
                     .__enter__()
@@ -352,13 +353,13 @@ class Claude(Model):
             if self.mcp_servers is not None:
                 return await self.get_async_client().beta.messages.create(
                     model=self.id,
-                    messages=chat_messages,
+                    messages=cast(List[BetaMessageParam], chat_messages),
                     **self.get_request_params(),
                 )
             else:
                 return await self.get_async_client().messages.create(
                     model=self.id,
-                    messages=chat_messages,
+                    messages=cast(List[MessageParam], chat_messages),
                     **request_kwargs,
                 )
         except APIConnectionError as e:
@@ -404,18 +405,18 @@ class Claude(Model):
             if self.mcp_servers is not None:
                 async with self.get_async_client().beta.messages.stream(
                     model=self.id,
-                    messages=chat_messages,
+                    messages=cast(List[BetaMessageParam], chat_messages),
                     **request_kwargs,
                 ) as stream:
-                    async for chunk in stream:
+                    async for chunk in stream:  # type: ignore
                         yield chunk
             else:
                 async with self.get_async_client().messages.stream(
                     model=self.id,
-                    messages=chat_messages,
+                    messages=cast(List[MessageParam], chat_messages),
                     **request_kwargs,
                 ) as stream:
-                    async for chunk in stream:
+                    async for chunk in stream:  # type: ignore
                         yield chunk
         except APIConnectionError as e:
             log_error(f"Connection error while calling Claude API: {str(e)}")
@@ -577,7 +578,7 @@ class Claude(Model):
         elif isinstance(response, ContentBlockStopEvent):
             # Handle completed thinking content
             if response.content_block.type == "thinking":
-                thinking_block = response.content_block 
+                thinking_block = response.content_block
                 model_response.thinking = thinking_block.thinking
                 model_response.provider_data = {
                     "signature": thinking_block.signature,
