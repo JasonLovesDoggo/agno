@@ -1,6 +1,6 @@
 import json
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from agno.media import File, Image
 from agno.models.message import Message
@@ -8,11 +8,15 @@ from agno.utils.log import log_error, log_warning
 
 try:
     from anthropic.types import (
-        TextBlock,
-        ToolUseBlock,
+        RedactedThinkingBlockParam,
+        TextBlockParam,
+        ThinkingBlockParam,
+        ToolUseBlockParam,
     )
 except ImportError:
     raise ImportError("`anthropic` not installed. Please install using `pip install anthropic`")
+
+ContentBlockParam = Union[TextBlockParam, ToolUseBlockParam, ThinkingBlockParam, RedactedThinkingBlockParam]
 
 
 @dataclass
@@ -210,7 +214,7 @@ def format_messages(messages: List[Message]) -> Tuple[List[Dict[str, Any]], str]
         messages (List[Message]): The list of messages to process.
 
     Returns:
-        Tuple[List[Dict[str, str]], str]: A tuple containing the list of API messages and the concatenated system messages.
+        Tuple[List[Dict[str, Any]], str]: A tuple containing the list of API messages and the concatenated system messages.
     """
     chat_messages: List[Dict[str, Any]] = []
     system_messages: List[str] = []
@@ -247,37 +251,35 @@ def format_messages(messages: List[Message]) -> Tuple[List[Dict[str, Any]], str]
             content = []
 
             if message.thinking is not None and message.provider_data is not None:
-                from anthropic.types import RedactedThinkingBlock, ThinkingBlock
-
                 content.append(
-                    ThinkingBlock(
-                        thinking=message.thinking,
-                        signature=message.provider_data.get("signature"),
-                        type="thinking",
-                    )
+                    {
+                        "thinking": message.thinking,
+                        "signature": message.provider_data.get("signature"),
+                        "type": "thinking",
+                    }
                 )
             if message.thinking is not None and message.provider_data is None:
-                content.append(TextBlock(text=f"Thinking: {message.thinking}", type="text"))
+                
+                content.append({"text": f"Thinking: {message.thinking}", "type": "text"})
 
             if message.redacted_thinking is not None:
-                from anthropic.types import RedactedThinkingBlock
-
-                content.append(RedactedThinkingBlock(data=message.redacted_thinking, type="redacted_thinking"))
+                # Create RedactedThinkingBlockParam (plain dict) instead of Pydantic model
+                content.append({"data": message.redacted_thinking, "type": "redacted_thinking"})
 
             if isinstance(message.content, str) and message.content and len(message.content.strip()) > 0:
-                content.append(TextBlock(text=message.content, type="text"))
+                content.append({"text": message.content, "type": "text"})
 
             if message.tool_calls:
                 for tool_call in message.tool_calls:
                     content.append(
-                        ToolUseBlock(
-                            id=tool_call["id"],
-                            input=json.loads(tool_call["function"]["arguments"])
+                        {
+                            "id": tool_call["id"],
+                            "input": json.loads(tool_call["function"]["arguments"])
                             if "arguments" in tool_call["function"]
                             else {},
-                            name=tool_call["function"]["name"],
-                            type="tool_use",
-                        )
+                            "name": tool_call["function"]["name"],
+                            "type": "tool_use",
+                        }
                     )
 
         # Skip empty assistant responses
