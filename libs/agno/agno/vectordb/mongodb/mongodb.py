@@ -1143,3 +1143,6 @@ class MongoDb(VectorDb):
 
     def delete_by_metadata(self, metadata: Dict[str, Any]) -> bool:
         pass
+
+    def delete_by_content_id(self, content_id: str) -> bool:
+        pass
